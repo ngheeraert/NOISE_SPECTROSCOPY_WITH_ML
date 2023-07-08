@@ -23,18 +23,20 @@ def prepare_trainData(c_in,T_in,T_train,noiseMax=0.03,cutOff=0.03):
 	return c_train
 
 
-def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train,T2_span,test_size):
+def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train,T2_span):
 	nnps = 6 #-- noise number per sample
 	c_train_1set = prepare_trainData( c_data, T_in, T_train )
 	s_train_1set = interpData( w0, s_data, w_train )
 	d1 = np.shape( c_train_1set )[0]
 	d2 = np.shape( c_train_1set )[1]
 	d3 = np.shape( s_train_1set )[1]
-	c_train = np.zeros( ( d1*nnps, d2 ) )
-	s_train = np.zeros( ( d1*nnps, d3 ) )
+	c_train_final = np.zeros( ( d1*nnps, d2 ) )
+	s_train_final = np.zeros( ( d1*nnps, d3 ) )
 	for i in range(nnps):
 		c_train_1set = prepare_trainData( c_data, T_in, T_train, noiseMax=0.015,cutOff=0.03 )
-		c_train[i*d1:(i+1)*d1,:] = c_train_1set
+		c_train_final[i*d1:(i+1)*d1,:] = c_train_1set
+		s_train_final[i*d1:(i+1)*d1,:] = s_train_1set
 
-	return train_test_split( c_train, s_train, test_size=test_size)
+	return c_train_final, s_train_final
+
 
