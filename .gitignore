@@ -2,3 +2,5 @@ training/
 tutorials/
 ARCHIVE/
 .ipynb_checkpoints/
+data/*
+RESULTS/*
