@@ -8,6 +8,7 @@ from data_generation_functions import generate_final_data
 
 import matplotlib.pyplot as plt 
 import matplotlib
+matplotlib.rcParams['figure.dpi']=300
 
 #=============================================
 #== IMPORTING THE DATA
@@ -61,7 +62,7 @@ model = get_model( filter_nb=FILTER_NB, kernel_size=KERNEL_SIZE, pool_size=POOL_
 
 #-- set up the hyperparameters
 BATCH_SIZE=64
-EPOCHS=500
+EPOCHS=1000
 INIT_LR=1e-3
 MIN_LR=1e-6
 RED_FACTOR=0.5
@@ -101,13 +102,10 @@ plt.savefig( 'RESULTS/VAL_ACC_HISTORY_'+filename+'.pdf', format='pdf' )
 #== testting the model
 #=============================================
 
+#-- apply the network to the whole test set
 predictions = model.predict(x_test)
-#reconstructed_model = models.load_model( 'training/'+filename, compile=False )
-#probability_model = Sequential([reconstructed_model])
-#probability_model = tf.keras.Sequential([model])
 
-matplotlib.rcParams['figure.dpi']=300
-
+#-- plot randomly selected noise spectra and compare
 plt.subplot(1, 1, 1)
 rand_set = np.random.randint( 0, y_test.shape[0] ,(5,) )
 for i in rand_set:
