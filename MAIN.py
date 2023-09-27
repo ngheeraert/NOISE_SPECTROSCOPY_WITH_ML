@@ -47,8 +47,8 @@ print("  w_train = ",np.shape(w_train))
 #== create the neural net
 #=============================================
 
-FILTER_NB=80
-KERNEL_SIZE=42
+FILTER_NB=20
+KERNEL_SIZE=20
 DROPOUT_RATE=0.05
 POOL_SIZE=2
 X_TRAIN_SIZE = np.shape(x_train)[-1]
@@ -62,17 +62,12 @@ model = get_model( filter_nb=FILTER_NB, kernel_size=KERNEL_SIZE, pool_size=POOL_
 
 #-- set up the hyperparameters
 BATCH_SIZE=64
-EPOCHS=1000
+EPOCHS=250
 INIT_LR=1e-3
 MIN_LR=1e-6
 RED_FACTOR=0.5
 DROPOUT_RATE=0.05
 
-#-- define useful filename
-filename="CNN_fil="+str(FILTER_NB)+"_ker="+str(KERNEL_SIZE)+"_dr"+str(DROPOUT_RATE)\
-            +"_ps="+str(POOL_SIZE)+'_LRini='+str(1e-3)+'_LRmin='+str(1e-6)\
-            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_NOISE_TYPES=3"
-print("-- filename = "+filename)
 
 #-- prepare the model
 model = get_model( filter_nb=FILTER_NB, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE,\
@@ -87,13 +82,29 @@ print('-- beginning fit')
 t1 = time.time()
 history_ = model.fit( x_train, y_train, BATCH_SIZE, epochs=EPOCHS,\
                         validation_data=(x_test, y_test), verbose=True, callbacks=[reduce_lr])
+final_accuracy = np.round(history_.history['val_loss'][-1],2)
 print('-- fit complete')
 print('-- time taken=', time.time() - t1)
+print('-- final accuracy=', final_accuracy)
+
+#-- define useful filename
+filename=str( np.round(history_.history['val_loss'][-1],2) )\
+			+"_fil="+str(FILTER_NB)+"_ker="+str(KERNEL_SIZE)+"_dr"+str(DROPOUT_RATE)\
+            +"_ps="+str(POOL_SIZE)+'_LRini='+str(1e-3)+'_LRmin='+str(1e-6)\
+            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_NOISE_TYPES=3"
+print("-- filename = "+filename)
 
 #-- save the model
 model.save('RESULTS/MODEL_'+filename, overwrite=True)
 
 #-- plot the history
+if final_accuracy<20:
+	plt.ylim(-1,20)
+else:
+	plt.ylim(-1,100)
+
+plt.axhline(y = final_accuracy, color = 'red', linestyle = '-')
+plt.title('Final accuracy = '+str(final_accuracy))
 plt.plot( np.arange( 0, EPOCHS ) , history_.history['val_loss'] )
 plt.savefig( 'RESULTS/VAL_ACC_HISTORY_'+filename+'.pdf', format='pdf' )
 
@@ -107,14 +118,15 @@ predictions = model.predict(x_test)
 
 #-- plot randomly selected noise spectra and compare
 plt.subplot(1, 1, 1)
-rand_set = np.random.randint( 0, y_test.shape[0] ,(5,) )
+rand_set = np.random.randint( 0, y_test.shape[0] ,(8,) )
 for i in rand_set:
-    plt.plot(w_train, y_test[i,:],color='C'+str(i))
-    plt.plot(w_train, predictions[i],dashes=[2,2,2,2],color='C'+str(i))
+    plt.plot(w_train/1e6, y_test[i,:],color='C'+str(i))
+    plt.plot(w_train/1e6, predictions[i],dashes=[2,2,2,2],color='C'+str(i))
 plt.yscale('log')
 plt.ylim(1e2,1e5)
-plt.xlim(0, 0.5e6)
+plt.xlim(0, 0.5e6/1e6)
 plt.ylabel('Noise Amplitude')
-plt.ylabel('Frequency \omega')
+plt.xlabel('Frequency \omega (MHz*2*pi)')
+plt.title('Final accuracy = '+str(final_accuracy))
 plt.savefig( 'RESULTS/MODEL_TEST_'+filename+'.pdf', format='pdf' )
 

@@ -22,7 +22,6 @@ def prepare_trainData(c_in,T_in,T_train,noiseMax=0.03,cutOff=0.03):
 		c_train[i,cut-1:] = 0
 	return c_train
 
-
 def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train,T2_span):
 	nnps = 6 #-- noise number per sample
 	c_train_1set = prepare_trainData( c_data, T_in, T_train )
@@ -39,4 +38,37 @@ def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train,T2_span):
 
 	return c_train_final, s_train_final
 
+# %%
+# Create CPMG-like pulse timing array
 
+def cpmgFilter(n, Tmax):
+    tpi = np.empty([n])
+    for i in range(n):
+        tpi[i]= Tmax*(((i+1)-0.5)/n)
+    return tpi
+
+
+# %%
+# Generate filter function for a given pulse sequence
+
+def getFilter(n,w0,piLength,Tmax):
+    tpi = cpmgFilter(n,Tmax)
+    f = 0    
+    for i in range(n):
+        f = ((-1)**(i+1))*(np.exp(1j*w0*tpi[i]))*np.cos((w0*piLength)/2) + f
+
+    fFunc = (1/2)*(( np.abs(1+((-1)**(n+1))*np.exp(1j*w0*Tmax)+2*f) )**2)/(w0**2)
+    return fFunc
+
+
+# %%
+# Generate decoherence curve corresponding to a noise spectrum (input shape = variable1.size x w.size)
+
+def getCoherence(S,w0,T0,n,piLength):
+    steps = T0.size
+    C_invert = np.empty([S.shape[0],steps,])
+    for i in range(steps):
+        integ = getFilter(n,np.squeeze(w0),piLength,T0[i])*S/np.pi
+        integ_ans = np.trapz(y=integ,x=np.squeeze(w0))
+        C_invert[:,i] = np.exp(integ_ans)
+    return C_invert    
