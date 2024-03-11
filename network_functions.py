@@ -1,6 +1,7 @@
 from tensorflow.keras import models, layers
 
 def get_model( filter_nb, kernel_size, pool_size, dropout_rate, xtrain_size ):
+
 	model = models.Sequential()
 	model.add( layers.Input( shape=(xtrain_size, 1) ) )
 	model.add( layers.Conv1D(filter_nb,kernel_size,activation="relu", padding='same' ) )

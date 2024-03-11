@@ -11,13 +11,18 @@ def interpData(x,y,xNew):
 # For preparing training data: Add random noise, then replace low values with zeros
 # Run this cell multiple times to generate sets with different random noise but same underlying curves
 
-def prepare_trainData(c_in,T_in,T_train,noiseMax=0.02):
-  c_train = interpData(T_in,c_in,T_train)
-  for i in range(c_in.shape[0]):
-    c_train[i,:] = c_train[i,:] + np.random.normal(0,noiseMax,size=c_train.shape[1])
-  return c_train
+def prepare_trainData(c_in,T_in,T_train,noiseMax=0.03,cutOff=0.03):
+	c_train = interpData(T_in,c_in,T_train)
+	for i in range(c_in.shape[0]):
+		c_train[i,:] = c_train[i,:] + np.random.normal(0,noiseMax*2/3,size=c_train.shape[1])
+		cut = np.squeeze(np.argwhere(c_train[i,:]<=cutOff+np.random.normal(0,noiseMax*2/3,1)))
+	if cut.size > 1:
+		c_train[i,cut[0]-1:] = 0
+	elif cut.size == 1:
+		c_train[i,cut-1:] = 0
+	return c_train
 
-def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train):
+def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train,T2_span):
 	nnps = 6 #-- noise number per sample
 	c_train_1set = prepare_trainData( c_data, T_in, T_train )
 	s_train_1set = interpData( w0, s_data, w_train )
@@ -27,7 +32,7 @@ def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train):
 	c_train_final = np.zeros( ( d1*nnps, d2 ) )
 	s_train_final = np.zeros( ( d1*nnps, d3 ) )
 	for i in range(nnps):
-		c_train_1set = prepare_trainData( c_data, T_in, T_train, noiseMax=0.02 )
+		c_train_1set = prepare_trainData( c_data, T_in, T_train, noiseMax=0.015,cutOff=0.03 )
 		c_train_final[i*d1:(i+1)*d1,:] = c_train_1set
 		s_train_final[i*d1:(i+1)*d1,:] = s_train_1set
 

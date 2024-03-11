@@ -5,34 +5,96 @@ import numpy as np
 import time
 from network_functions import *
 from data_generation_functions import generate_final_data
+import sys
+import os
 
 import matplotlib.pyplot as plt 
 import matplotlib
 matplotlib.rcParams['figure.dpi']=300
+
+
+#=============================================
+#== COMMAND LINE PARAMETERS
+#=============================================
+
+#-- network structure
+FILTERS=40
+KERNEL_SIZE=5
+DROPOUT_RATE=0.05
+POOL_SIZE=2
+
+#-- training hyperparamters
+BATCH_SIZE=64
+EPOCHS=20
+INITIAL_LR=1e-3
+MIN_LR=1e-6
+RED_FACTOR=0.5
+DROPOUT_RATE=0.05
+PATIENCE=6
+MIN_DELTA=0.5
+NB=0
+VERBOSE=True
+
+n = len(sys.argv)
+
+for i in range(1, n):
+	if isinstance( sys.argv[i], str ):
+		if (sys.argv[i]=='--batch_size'):
+			BATCH_SIZE=int( sys.argv[i+1] )
+		elif (sys.argv[i]=='--epochs'):
+			EPOCHS=int(sys.argv[i+1])
+		elif (sys.argv[i]=='--filters'):
+			FILTERS=int(sys.argv[i+1])
+		elif (sys.argv[i]=='--kernel_size'):
+			KERNEL_SIZE=int(sys.argv[i+1])
+		elif (sys.argv[i]=='--initial_lr'):
+			INITIAL_LR=float(sys.argv[i+1])
+		elif (sys.argv[i]=='--min_lr'):
+			MIN_LR=float(sys.argv[i+1])
+		elif (sys.argv[i]=='--min_delta'):
+			MIN_DELTA=float(sys.argv[i+1])
+		elif (sys.argv[i]=='--patience'):
+			PATIENCE=float(sys.argv[i+1])
+		elif (sys.argv[i]=='--nb'):
+			NB=int(sys.argv[i+1])
+		elif (sys.argv[i]=='--verbose'):
+			VERBOSE=sys.argv[i+1]
+
+print(VERBOSE)
+
+print('=============================')
+print('-- BATCH_SIZE  = ', BATCH_SIZE)
+print('-- EPOCHS      = ', EPOCHS)
+print('-- FILTERS     = ', FILTERS)
+print('-- KERNEL_SIZE = ', KERNEL_SIZE)
+print('-- INITIAL_LR  = ', INITIAL_LR)
+print('-- MIN_LR      = ', MIN_LR)
+print('-- MIN_DELTA   = ', MIN_DELTA)
+print('-- PATIENCE    = ', PATIENCE)
+print('=============================')
 
 #=============================================
 #== IMPORTING THE DATA
 #=============================================
 
 #== import the data
-data_1 = np.load("data/1OverF_1.npz")
-data_2 = np.load("data/Lor_1.npz")
-data_3 = np.load("data/1OverF-Lorf_1.npz")
-c_data = np.append( data_1['arr_0'], np.append( data_2['arr_0'], data_3['arr_0'], axis=0 ), axis=0 )
-T_in = data_1['arr_1']         # Time vector for data generation 
-s_data = np.append( data_1['arr_2'], np.append( data_2['arr_2'], data_3['arr_2'], axis=0 ), axis=0 )
-w0 = data_1['arr_3']           # Omega vector for data generation
-T_train = data_1['arr_4']      # Time vector for training data (based on the experimental data)
-w_train = data_1['arr_5']      # Omega vector for training data
-T2_span = data_1['arr_6']      # T2 distribution
+data = np.load("data/Mar6_x32_noisy.npz")
+
+c_data = data['c_in'] 
+T_in = data['T_in']    # Time vector for data generation 
+s_data = data['s_in'] 
+w0 = data['w_in']           # Omega vector for data generation
+T_train = data['T_train']      # Time vector for training data (based on the experimental data)
+w_train = data['w_train']      # Omega vector for training data
 print('-- data loaded')
 
 
 #== format the data for the training stage
 c_train, s_train = \
-generate_final_data(c_data,T_in,s_data,w0,T_train,w_train,T2_span)
+generate_final_data( c_data, T_in, s_data, w0, T_train, w_train )
 
 x_train, x_test, y_train, y_test = train_test_split( c_train, s_train, test_size=0.15)
+
 
 print('-- data split for training:')
 print("  x_train = ",np.shape(x_train))
@@ -47,34 +109,28 @@ print("  w_train = ",np.shape(w_train))
 #== create the neural net
 #=============================================
 
-FILTER_NB=20
-KERNEL_SIZE=20
-DROPOUT_RATE=0.05
-POOL_SIZE=2
 X_TRAIN_SIZE = np.shape(x_train)[-1]
 
-model = get_model( filter_nb=FILTER_NB, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE,\
+model = get_model( filter_nb=FILTERS, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE,\
                   dropout_rate=DROPOUT_RATE, xtrain_size=X_TRAIN_SIZE )
 
 #=============================================
 #== training
 #=============================================
 
-#-- set up the hyperparameters
-BATCH_SIZE=64
-EPOCHS=250
-INIT_LR=1e-3
-MIN_LR=1e-6
-RED_FACTOR=0.5
-DROPOUT_RATE=0.05
-
-
-#-- prepare the model
-model = get_model( filter_nb=FILTER_NB, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE,\
+#-- prepare the model and the callback function
+model = get_model( filter_nb=FILTERS, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE,\
                   dropout_rate=DROPOUT_RATE, xtrain_size=X_TRAIN_SIZE )  #-- create model
-reduce_lr = callbacks.ReduceLROnPlateau(monitor="val_loss",factor=RED_FACTOR,patience=8,verbose=True,\
-    mode="auto",min_delta=0.001,cooldown=0,min_lr=MIN_LR)  #-- define LR reduction strategy
-opt = optimizers.Adam(learning_rate=INIT_LR)  #-- define optimizer
+reduce_lr = callbacks.ReduceLROnPlateau( monitor="val_loss", \
+										factor=RED_FACTOR,\
+										patience=PATIENCE,\
+										verbose=VERBOSE,\
+										mode="auto",\
+										min_delta=MIN_DELTA,\
+										cooldown=0,\
+										min_lr=MIN_LR)  #-- define LR reduction strategy
+
+opt = optimizers.legacy.Adam(learning_rate=INITIAL_LR)  #-- define optimizer
 model.compile(loss='MAPE', optimizer=opt)  #-- compilation
 
 #-- fit the model
@@ -87,26 +143,42 @@ print('-- fit complete')
 print('-- time taken=', time.time() - t1)
 print('-- final accuracy=', final_accuracy)
 
-#-- define useful filename
-filename=str( np.round(history_.history['val_loss'][-1],2) )\
-			+"_fil="+str(FILTER_NB)+"_ker="+str(KERNEL_SIZE)+"_dr"+str(DROPOUT_RATE)\
-            +"_ps="+str(POOL_SIZE)+'_LRini='+str(1e-3)+'_LRmin='+str(1e-6)\
-            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_NOISE_TYPES=3"
-print("-- filename = "+filename)
+#-- define useful paramchar
+paramchar_no_fil_no_ker="dr"+str(DROPOUT_RATE)\
+            +"_ps="+str(POOL_SIZE)+'_LRini='+str(INITIAL_LR)+'_LRmin='+str(MIN_LR)\
+            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_nb="+str(NB)
+paramchar=str( np.round(history_.history['val_loss'][-1],2) )\
+			+"_fil="+str(FILTERS)+"_ker="+str(KERNEL_SIZE)+"_dr"+str(DROPOUT_RATE)\
+            +"_ps="+str(POOL_SIZE)+'_LRini='+str(INITIAL_LR)+'_LRmin='+str(MIN_LR)\
+            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_nb="+str(NB)
+print("-- paramchar = "+paramchar)
 
 #-- save the model
-model.save('RESULTS/MODEL_'+filename, overwrite=True)
+model.save( 'RESULTS/MODEL_'+paramchar, overwrite=True)
+
+filename = 'RESULTS/accuracy_'+paramchar_no_fil_no_ker+'.txt'
+if os.path.exists(filename):
+    append_write = 'a' # append if already exists
+else:
+    append_write = 'w' # make a new file if not
+
+f = open( filename, append_write )
+f.write( str(FILTERS) +'    '+ str(KERNEL_SIZE) + '    ' + str( np.round(history_.history['val_loss'][-1],2) ) + '\n' )
+f.close()
 
 #-- plot the history
-if final_accuracy<20:
-	plt.ylim(-1,20)
-else:
-	plt.ylim(-1,100)
 
-plt.axhline(y = final_accuracy, color = 'red', linestyle = '-')
+plt.subplot(1, 1, 1)
+plt.axhline(y = final_accuracy, color = 'black', dashes=[2,2,2,2])
 plt.title('Final accuracy = '+str(final_accuracy))
-plt.plot( np.arange( 0, EPOCHS ) , history_.history['val_loss'] )
-plt.savefig( 'RESULTS/VAL_ACC_HISTORY_'+filename+'.pdf', format='pdf' )
+plt.plot( np.arange( 0, EPOCHS ) , history_.history['val_loss'], label='validation' )
+plt.plot( np.arange( 0, EPOCHS ) , history_.history['loss'], label='training' )
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.ylim(-1,100)
+plt.legend()
+plt.savefig( 'RESULTS/VAL_ACC_HISTORY_'+paramchar+'.pdf', format='pdf' )
+plt.close()
 
 
 #=============================================
@@ -120,13 +192,14 @@ predictions = model.predict(x_test)
 plt.subplot(1, 1, 1)
 rand_set = np.random.randint( 0, y_test.shape[0] ,(8,) )
 for i in rand_set:
-    plt.plot(w_train/1e6, y_test[i,:],color='C'+str(i))
-    plt.plot(w_train/1e6, predictions[i],dashes=[2,2,2,2],color='C'+str(i))
+    plt.plot( w_train/1e6, y_test[i,:], color='C'+str(i) )
+    plt.plot( w_train/1e6, predictions[i], dashes=[2,2,2,2], color='C'+str(i) )
+plt.xscale('log')
+plt.ylim(1e2,5e4)
 plt.yscale('log')
-plt.ylim(1e2,1e5)
-plt.xlim(0, 0.5e6/1e6)
 plt.ylabel('Noise Amplitude')
 plt.xlabel('Frequency \omega (MHz*2*pi)')
 plt.title('Final accuracy = '+str(final_accuracy))
-plt.savefig( 'RESULTS/MODEL_TEST_'+filename+'.pdf', format='pdf' )
+plt.savefig( 'RESULTS/MODEL_TEST_'+paramchar+'.pdf', format='pdf' )
+plt.close()
 
