@@ -1,10 +1,9 @@
 from tensorflow.keras import models, optimizers, callbacks, Sequential
 #import tensorflow_addons as tfa
-from sklearn.model_selection import train_test_split
 import numpy as np
 import time
 from network_functions import get_model
-from data_generation_functions import generate_final_data
+from data_generation_functions import generate_final_data, numpy_train_test_split
 import sys 
 import os
 import matplotlib.pyplot as plt 
@@ -93,8 +92,7 @@ T_train = data['T_train']      # Time vector for training data (based on the exp
 w_train = data['w_train']      # Omega vector for training data
 print('-- data loaded from: '+data_file_name+".npz")
 
-
-x_train, x_test, y_train, y_test = train_test_split( c_data, s_data, test_size=0.15)
+x_train, x_test, y_train, y_test = numpy_train_test_split( c_data, s_data, test_size=0.15, shuffle=True, seed=2)
 
 print("  x_train = ",np.shape(x_train))
 print("  y_train = ",np.shape(y_train))
@@ -124,7 +122,7 @@ reduce_lr = callbacks.ReduceLROnPlateau( monitor="loss", \
 										min_lr=MIN_LR)  #-- define LR reduction strategy
 
 #-- define optimizer
-opt = optimizers.legacy.Adam(learning_rate=INITIAL_LR)  #-- define optimizer
+opt = optimizers.Adam(learning_rate=INITIAL_LR)  #-- define optimizer
 
 #-- compile
 model.compile(loss='MAPE', optimizer=opt)  #-- compilation
@@ -155,7 +153,8 @@ paramchar=str( np.round(history_.history['val_loss'][-1],2) )\
 print("-- paramchar = "+paramchar)
 
 #-- save the model
-model.save( 'TRAINED_NETWORKS/MODEL_'+paramchar, overwrite=True)
+model.save('TRAINED_NETWORKS/MODEL_'+paramchar+'.h5', overwrite=True)
+print("Saved:", 'TRAINED_NETWORKS/MODEL_'+paramchar+'.h5')
 
 #filename = 'TRAINED_NETWORKS/accuracy_'+paramchar_no_fil_no_ker+'.txt'
 #if os.path.exists(filename):

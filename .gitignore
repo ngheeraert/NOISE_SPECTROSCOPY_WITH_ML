@@ -4,3 +4,4 @@ ARCHIVE/
 .ipynb_checkpoints/
 data/*
 RESULTS/*
+TRAINED_NETWORKS/OBSELETE/*
