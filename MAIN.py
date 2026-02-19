@@ -1,3 +1,17 @@
+# =============================================================================
+# Training / evaluation entry point.
+#
+# This script loads a dataset of (coherence curve -> spectrum) pairs, builds a
+# 1D convolutional model (selected by net_type), trains it, saves the model, and
+# produces diagnostic plots for training history and random test predictions.
+#
+# Usage:
+#   python MAIN.py --batch_size 64 --epochs 20 --filters 40 --kernel_size 5 \
+#                 --initial_lr 1e-3 --min_lr 1e-6 --patience 6 --min_delta 0.5 \
+#                 --verbose 1 --net_type 1
+# Reference: B. Gupta et al., "Expedited Noise Spectroscopy of Transmon Qubits", Adv. Quantum Technol. (2025), DOI: 10.1002/qute.202500109
+# =============================================================================
+
 from tensorflow.keras import models, optimizers, callbacks, Sequential
 #import tensorflow_addons as tfa
 import numpy as np
@@ -12,6 +26,9 @@ matplotlib.rcParams['figure.dpi']=300
 
 
 #=============================================
+#
+# The block below implements lightweight CLI parsing (sys.argv) to override
+# the default hyperparameters. No external argument parser is used.
 #== COMMAND LINE PARAMETERS
 #=============================================
 
@@ -77,6 +94,12 @@ print('-- PATIENCE    = ', PATIENCE)
 print('=============================')
 
 #=============================================
+#
+# Dataset format expectation (npz):
+#   - c_in: input coherence curves (samples x time_points [x 1 optional channel])
+#   - s_in: target spectra (samples x freq_points)
+#   - T_in / w_in: grids used to generate synthetic data
+#   - T_train / w_train: grids used for model I/O and plotting
 #== IMPORTING THE DATA
 #=============================================
 
@@ -103,6 +126,11 @@ print("  w_train = ",np.shape(w_train))
 
 
 #=============================================
+#
+# Model construction:
+#   - get_model(...) returns a tf.keras Sequential model with an encoder-decoder
+#     style 1D CNN front-end and a Dense(501) output layer (spectrum vector).
+#   - ReduceLROnPlateau lowers the learning rate when the monitored loss stalls.
 #== create the neural, and compile the network
 #=============================================
 
@@ -128,6 +156,11 @@ opt = optimizers.Adam(learning_rate=INITIAL_LR)  #-- define optimizer
 model.compile(loss='MAPE', optimizer=opt)  #-- compilation
 
 #=============================================
+#
+# Training:
+#   - Uses MAPE (mean absolute percentage error) loss.
+#   - Tracks both training loss and validation loss.
+#   - 'history_' stores per-epoch metrics for later plotting/saving.
 #== training
 #=============================================
 
@@ -182,6 +215,10 @@ plt.close()
 
 
 #=============================================
+#
+# Quick qualitative test:
+#   - Predict spectra for the held-out test set.
+#   - Plot a small random subset of true vs predicted spectra on log-log axes.
 #== testting the model
 #=============================================
 
