@@ -1,6 +1,6 @@
-# Noise Spectroscopy ML Pipeline (commented)
+# Noise Spectroscopy ML Pipeline
 
-This folder contains a small training pipeline that:
+This folder contains a training pipeline that:
 - loads a dataset of **coherence curves** (time-series inputs) and corresponding **noise spectra** (vector targets),
 - trains a **1D convolutional neural network** to map `coherence(t) -> spectrum(ω)`,
 - saves the trained model and a couple of diagnostic plots.
