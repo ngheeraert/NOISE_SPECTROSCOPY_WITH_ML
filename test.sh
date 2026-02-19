@@ -1,3 +1,4 @@
-min=10
-max=20
-echo $(($RANDOM%($max-$min+1)+$min))
+a=2
+b=4
+
+echo $a

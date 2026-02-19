@@ -1,37 +1,70 @@
-import numpy as np
-from scipy.interpolate import interp1d
-from sklearn.model_selection import train_test_split
+import numpy as np 
+from scipy.interpolate import interp1d 
+from tqdm import trange 
+
+
+def numpy_train_test_split(X, y, test_size=0.15, shuffle=True, seed=None):
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    if X.shape[0] != y.shape[0]:
+        raise ValueError(f"X and y must have same first dimension, got {X.shape[0]} and {y.shape[0]}")
+
+    n = X.shape[0]
+    n_test = int(round(n * test_size))
+    n_test = max(1, min(n_test, n-1))  # keep at least 1 sample in each
+
+    idx = np.arange(n)
+    if shuffle:
+        rng = np.random.default_rng(seed)
+        rng.shuffle(idx)
+
+    test_idx = idx[:n_test]
+    train_idx = idx[n_test:]
+
+    return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
 
 # For data interpolation
-def interpData(x,y,xNew):
-	f_interp = interp1d(x,y)
-	yNew = f_interp(xNew)
-	return yNew
+
+
+
+# For data interpolation
+
+def interpData(x, y, xNew, axis=-1):
+
+    print("x shape:", np.shape(x))
+    print("y shape:", np.shape(y))
+    f = interp1d(x, y, axis=axis)
+    return f(xNew)
 
 # For preparing training data: Add random noise, then replace low values with zeros
 # Run this cell multiple times to generate sets with different random noise but same underlying curves
 
 def prepare_trainData(c_in,T_in,T_train,noiseMax=0.02):
+  print("x shape:", np.shape(T_in))
+  print("y shape:", np.shape(c_in))
   c_train = interpData(T_in,c_in,T_train)
   for i in range(c_in.shape[0]):
     c_train[i,:] = c_train[i,:] + np.random.normal(0,noiseMax,size=c_train.shape[1])
   return c_train
 
 def generate_final_data(c_data,T_in,s_data,w0,T_train,w_train):
-	nnps = 6 #-- noise number per sample
-	c_train_1set = prepare_trainData( c_data, T_in, T_train )
-	s_train_1set = interpData( w0, s_data, w_train )
-	d1 = np.shape( c_train_1set )[0]
-	d2 = np.shape( c_train_1set )[1]
-	d3 = np.shape( s_train_1set )[1]
-	c_train_final = np.zeros( ( d1*nnps, d2 ) )
-	s_train_final = np.zeros( ( d1*nnps, d3 ) )
-	for i in range(nnps):
-		c_train_1set = prepare_trainData( c_data, T_in, T_train, noiseMax=0.02 )
-		c_train_final[i*d1:(i+1)*d1,:] = c_train_1set
-		s_train_final[i*d1:(i+1)*d1,:] = s_train_1set
+    nnps = 6 #-- noise number per sample
+    print("c_data shape:", np.shape(c_data))
+    print("T_in shape:", np.shape(T_in))
+    c_train_1set = prepare_trainData( c_data, T_in, T_train )
+    s_train_1set = interpData( w0, s_data, w_train )
+    d1 = np.shape( c_train_1set )[0]
+    d2 = np.shape( c_train_1set )[1]
+    d3 = np.shape( s_train_1set )[1]
+    c_train_final = np.zeros( ( d1*nnps, d2 ) )
+    s_train_final = np.zeros( ( d1*nnps, d3 ) )
+    for i in range(nnps):
+        c_train_1set = prepare_trainData( c_data, T_in, T_train, noiseMax=0.02 )
+        c_train_final[i*d1:(i+1)*d1,:] = c_train_1set
+        s_train_final[i*d1:(i+1)*d1,:] = s_train_1set
 
-	return c_train_final, s_train_final
+    return c_train_final, s_train_final
 
 # %%
 # Create CPMG-like pulse timing array
@@ -67,3 +100,14 @@ def getCoherence(S,w0,T0,n,piLength):
         integ_ans = np.trapz(y=integ,x=np.squeeze(w0))
         C_invert[:,i] = np.exp(integ_ans)
     return C_invert    
+
+def spectrum_extend(exp_predict,w_train,w_new):
+  w_lowSize = np.argwhere(w_new<w_train.min()).size
+  w_lowArg = np.argwhere(w_new<w_train.min())[0]
+
+  s_extend = np.zeros((exp_predict.shape[0],w_new.size))
+  s_extend[:,int(w_lowArg):] = np.repeat(np.mean(exp_predict[:,-4:],axis=1),
+                                        int(w_lowSize)).reshape(exp_predict.shape[0],int(w_lowSize))
+  for i in range(exp_predict.shape[0]):
+    s_extend[i,:int(w_lowArg)] = interpData(w_train,exp_predict[i,:],w_new[:int(w_lowArg)])
+  return s_extend

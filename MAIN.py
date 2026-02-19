@@ -3,11 +3,10 @@ from tensorflow.keras import models, optimizers, callbacks, Sequential
 from sklearn.model_selection import train_test_split
 import numpy as np
 import time
-from network_functions import *
+from network_functions import get_model
 from data_generation_functions import generate_final_data
-import sys
+import sys 
 import os
-
 import matplotlib.pyplot as plt 
 import matplotlib
 matplotlib.rcParams['figure.dpi']=300
@@ -34,6 +33,7 @@ PATIENCE=6
 MIN_DELTA=0.5
 NB=0
 VERBOSE=True
+NET_TYPE=1
 
 n = len(sys.argv)
 
@@ -58,15 +58,19 @@ for i in range(1, n):
 		elif (sys.argv[i]=='--nb'):
 			NB=int(sys.argv[i+1])
 		elif (sys.argv[i]=='--verbose'):
-			VERBOSE=sys.argv[i+1]
-
-print(VERBOSE)
+			if int(sys.argv[i+1])==1:
+				VERBOSE=True
+			else:
+				VERBOSE=False
+		elif (sys.argv[i]=='--net_type'):
+			NET_TYPE=int(sys.argv[i+1])
 
 print('=============================')
 print('-- BATCH_SIZE  = ', BATCH_SIZE)
 print('-- EPOCHS      = ', EPOCHS)
 print('-- FILTERS     = ', FILTERS)
 print('-- KERNEL_SIZE = ', KERNEL_SIZE)
+print('-- NET_TYPE    = ', NET_TYPE)
 print('-- INITIAL_LR  = ', INITIAL_LR)
 print('-- MIN_LR      = ', MIN_LR)
 print('-- MIN_DELTA   = ', MIN_DELTA)
@@ -78,7 +82,8 @@ print('=============================')
 #=============================================
 
 #== import the data
-data = np.load("data/Mar6_x32_noisy.npz")
+data_file_name='Mar14_x32_noisy_20_noises'
+data = np.load("data/"+data_file_name+".npz")
 
 c_data = data['c_in'] 
 T_in = data['T_in']    # Time vector for data generation 
@@ -86,17 +91,11 @@ s_data = data['s_in']
 w0 = data['w_in']           # Omega vector for data generation
 T_train = data['T_train']      # Time vector for training data (based on the experimental data)
 w_train = data['w_train']      # Omega vector for training data
-print('-- data loaded')
+print('-- data loaded from: '+data_file_name+".npz")
 
 
-#== format the data for the training stage
-c_train, s_train = \
-generate_final_data( c_data, T_in, s_data, w0, T_train, w_train )
+x_train, x_test, y_train, y_test = train_test_split( c_data, s_data, test_size=0.15)
 
-x_train, x_test, y_train, y_test = train_test_split( c_train, s_train, test_size=0.15)
-
-
-print('-- data split for training:')
 print("  x_train = ",np.shape(x_train))
 print("  y_train = ",np.shape(y_train))
 print("  x_test = ",np.shape(x_test))
@@ -106,22 +105,16 @@ print("  w_train = ",np.shape(w_train))
 
 
 #=============================================
-#== create the neural net
+#== create the neural, and compile the network
 #=============================================
 
 X_TRAIN_SIZE = np.shape(x_train)[-1]
 
 model = get_model( filter_nb=FILTERS, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE,\
-                  dropout_rate=DROPOUT_RATE, xtrain_size=X_TRAIN_SIZE )
-
-#=============================================
-#== training
-#=============================================
+                  dropout_rate=DROPOUT_RATE, xtrain_size=X_TRAIN_SIZE, net_type=NET_TYPE )  #-- create model
 
 #-- prepare the model and the callback function
-model = get_model( filter_nb=FILTERS, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE,\
-                  dropout_rate=DROPOUT_RATE, xtrain_size=X_TRAIN_SIZE )  #-- create model
-reduce_lr = callbacks.ReduceLROnPlateau( monitor="val_loss", \
+reduce_lr = callbacks.ReduceLROnPlateau( monitor="loss", \
 										factor=RED_FACTOR,\
 										patience=PATIENCE,\
 										verbose=VERBOSE,\
@@ -130,14 +123,21 @@ reduce_lr = callbacks.ReduceLROnPlateau( monitor="val_loss", \
 										cooldown=0,\
 										min_lr=MIN_LR)  #-- define LR reduction strategy
 
+#-- define optimizer
 opt = optimizers.legacy.Adam(learning_rate=INITIAL_LR)  #-- define optimizer
+
+#-- compile
 model.compile(loss='MAPE', optimizer=opt)  #-- compilation
 
-#-- fit the model
+#=============================================
+#== training
+#=============================================
+
 print('-- beginning fit')
 t1 = time.time()
 history_ = model.fit( x_train, y_train, BATCH_SIZE, epochs=EPOCHS,\
-                        validation_data=(x_test, y_test), verbose=True, callbacks=[reduce_lr])
+                        validation_data=(x_test, y_test), verbose=VERBOSE, callbacks=[reduce_lr])
+
 final_accuracy = np.round(history_.history['val_loss'][-1],2)
 print('-- fit complete')
 print('-- time taken=', time.time() - t1)
@@ -146,25 +146,26 @@ print('-- final accuracy=', final_accuracy)
 #-- define useful paramchar
 paramchar_no_fil_no_ker="dr"+str(DROPOUT_RATE)\
             +"_ps="+str(POOL_SIZE)+'_LRini='+str(INITIAL_LR)+'_LRmin='+str(MIN_LR)\
-            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_nb="+str(NB)
+            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_nt="+str(NET_TYPE)
 paramchar=str( np.round(history_.history['val_loss'][-1],2) )\
 			+"_fil="+str(FILTERS)+"_ker="+str(KERNEL_SIZE)+"_dr"+str(DROPOUT_RATE)\
             +"_ps="+str(POOL_SIZE)+'_LRini='+str(INITIAL_LR)+'_LRmin='+str(MIN_LR)\
-            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_nb="+str(NB)
+            +'_bs='+str(BATCH_SIZE)+"_ep="+str(EPOCHS)+"_nt="+str(NET_TYPE)\
+            +'_'+ data_file_name
 print("-- paramchar = "+paramchar)
 
 #-- save the model
-model.save( 'RESULTS/MODEL_'+paramchar, overwrite=True)
+model.save( 'TRAINED_NETWORKS/MODEL_'+paramchar, overwrite=True)
 
-filename = 'RESULTS/accuracy_'+paramchar_no_fil_no_ker+'.txt'
-if os.path.exists(filename):
-    append_write = 'a' # append if already exists
-else:
-    append_write = 'w' # make a new file if not
-
-f = open( filename, append_write )
-f.write( str(FILTERS) +'    '+ str(KERNEL_SIZE) + '    ' + str( np.round(history_.history['val_loss'][-1],2) ) + '\n' )
-f.close()
+#filename = 'TRAINED_NETWORKS/accuracy_'+paramchar_no_fil_no_ker+'.txt'
+#if os.path.exists(filename):
+#    append_write = 'a' # append if already exists
+#else:
+#    append_write = 'w' # make a new file if not
+#
+#f = open( filename, append_write )
+#f.write( str(FILTERS) +'    '+ str(KERNEL_SIZE) + '    ' + str( np.round(history_.history['val_loss'][-1],2) ) + '\n' )
+#f.close()
 
 #-- plot the history
 
@@ -177,7 +178,7 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.ylim(-1,100)
 plt.legend()
-plt.savefig( 'RESULTS/VAL_ACC_HISTORY_'+paramchar+'.pdf', format='pdf' )
+plt.savefig( 'TRAINED_NETWORKS/VAL_ACC_HISTORY_'+paramchar+'.pdf', format='pdf' )
 plt.close()
 
 
@@ -200,6 +201,6 @@ plt.yscale('log')
 plt.ylabel('Noise Amplitude')
 plt.xlabel('Frequency \omega (MHz*2*pi)')
 plt.title('Final accuracy = '+str(final_accuracy))
-plt.savefig( 'RESULTS/MODEL_TEST_'+paramchar+'.pdf', format='pdf' )
+plt.savefig( 'TRAINED_NETWORKS/MODEL_TEST_'+paramchar+'.pdf', format='pdf' )
 plt.close()
 
