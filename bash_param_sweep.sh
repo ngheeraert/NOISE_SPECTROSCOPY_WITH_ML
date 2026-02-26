@@ -8,9 +8,6 @@
 #
 # Notes:
 #   - The loop count is hard-coded (1..10000). Stop with Ctrl+C when desired.
-#   - The printed variable '$nb' is not defined in this script; set it externally
-#     if you want that line to show something meaningful.
-# Reference: B. Gupta et al., "Expedited Noise Spectroscopy of Transmon Qubits", Adv. Quantum Technol. (2025), DOI: 10.1002/qute.202500109
 # =============================================================================
 
 #FILTERS=28

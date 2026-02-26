@@ -9,7 +9,6 @@
 #   python MAIN.py --batch_size 64 --epochs 20 --filters 40 --kernel_size 5 \
 #                 --initial_lr 1e-3 --min_lr 1e-6 --patience 6 --min_delta 0.5 \
 #                 --verbose 1 --net_type 1
-# Reference: B. Gupta et al., "Expedited Noise Spectroscopy of Transmon Qubits", Adv. Quantum Technol. (2025), DOI: 10.1002/qute.202500109
 # =============================================================================
 
 from tensorflow.keras import models, optimizers, callbacks, Sequential
@@ -100,10 +99,9 @@ print('=============================')
 #   - s_in: target spectra (samples x freq_points)
 #   - T_in / w_in: grids used to generate synthetic data
 #   - T_train / w_train: grids used for model I/O and plotting
-#== IMPORTING THE DATA
 #=============================================
 
-#== import the data
+#== IMPORTING THE DATA
 data_file_name='Mar14_x32_noisy_20_noises'
 data = np.load("data/"+data_file_name+".npz")
 
@@ -219,7 +217,6 @@ plt.close()
 # Quick qualitative test:
 #   - Predict spectra for the held-out test set.
 #   - Plot a small random subset of true vs predicted spectra on log-log axes.
-#== testting the model
 #=============================================
 
 #-- apply the network to the whole test set

@@ -47,11 +47,6 @@ def numpy_train_test_split(X, y, test_size=0.15, shuffle=True, seed=None):
 
 # For data interpolation
 
-
-
-# For data interpolation
-
-
 # -----------------------------------------------------------------------------
 # Interpolate data y(x) onto a new x-grid using scipy.interpolate.interp1d.
 # The interpolation is performed along the specified axis (default: last axis).

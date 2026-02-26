@@ -10,7 +10,6 @@
 #   - Head: Conv1D(1) -> Flatten -> Dropout -> Dense(501)
 #
 # The 'get_model(...)' dispatcher selects the variant by 'net_type'.
-# Reference: B. Gupta et al., "Expedited Noise Spectroscopy of Transmon Qubits", Adv. Quantum Technol. (2025), DOI: 10.1002/qute.202500109
 # =============================================================================
 
 from tensorflow.keras import models, layers
