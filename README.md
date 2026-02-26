@@ -1,8 +1,8 @@
 # Expedited Noise Spectroscopy of Transmon Qubits: ML Pipeline
 
-[cite_start]This repository contains the machine learning pipeline developed to rapidly extract time-varying noise spectral densities associated with transmon qubits[cite: 5, 6]. 
+This repository contains the machine learning pipeline developed to rapidly extract time-varying noise spectral densities associated with transmon qubits. 
 
-[cite_start]Traditional noise spectroscopy protocols are often resource-intensive and struggle with time-dependent noise because they require deconvolving a measured coherence decay curve $C(t)$ with a known filter function $F(\omega t)$[cite: 10, 11, 131]. [cite_start]This pipeline addresses that challenge by using a convolutional neural network (CNN) pre-trained on synthetic datasets to predict the underlying noise spectrum $S(\omega)$ nearly instantaneously with minimal absolute error[cite: 12, 13].
+Traditional noise spectroscopy protocols are often resource-intensive and struggle with time-dependent noise because they require deconvolving a measured coherence decay curve $C(t)$ with a known filter function $F(\omega t)$. This pipeline addresses that challenge by using a convolutional neural network (CNN) pre-trained on synthetic datasets to predict the underlying noise spectrum $S(\omega)$ nearly instantaneously with minimal absolute error.
 
 ## Repository Contents
 
@@ -42,41 +42,40 @@ The pipeline requires the following Python libraries:
 1. **Create Directory Structure**:
    ```bash
    mkdir data TRAINED_NETWORKS
-Data Preparation:
-The MAIN.py script expects an .npz file in the data/ folder. The file must contain the following keys:
+   ```
 
-c_in: Input coherence curves (N samples x Time points).
+2. **Data Preparation**:
+   The `MAIN.py` script expects an `.npz` file in the `data/` folder. The file must contain the following keys:
+   * `c_in`: Input coherence curves (N samples x Time points).
+   * `s_in`: Target noise spectra (N samples x Frequency points).
+   * `T_in` / `w_in`: Grids used for synthetic generation.
+   * `T_train` / `w_train`: Grids used for model training/plotting.
 
-s_in: Target noise spectra (N samples x Frequency points).
+> **Note**: The default dataset name is hardcoded as `Mar14_x32_noisy_20_noises` in `MAIN.py`. Update the `data_file_name` variable to match your filename.
 
-T_in / w_in: Grids used for synthetic generation.
+## Running the Pipeline
 
-T_train / w_train: Grids used for model training/plotting.
+### Training a Single Model
+Execute `MAIN.py` with your desired hyperparameters:
 
-Note: The default dataset name is hardcoded as Mar14_x32_noisy_20_noises in MAIN.py. Update the data_file_name variable to match your filename.
-
-Running the Pipeline
-Training a Single Model
-Execute MAIN.py with your desired hyperparameters:
-
-Bash
+```bash
 python MAIN.py --batch_size 64 --epochs 20 --filters 40 --kernel_size 5 \
   --initial_lr 1e-3 --min_lr 1e-6 --patience 6 --min_delta 0.5 \
   --verbose 1 --net_type 1
-Performing a Parameter Sweep
+```
+
+### Performing a Parameter Sweep
 To automatically test multiple architectures:
-
-Bash
+```bash
 bash bash_param_sweep.sh
-Outputs
-All results are saved in the TRAINED_NETWORKS/ directory, labeled with a unique hyperparameter string:
+```
 
-.h5 File: The serialized Keras model weights and architecture.
+## Outputs
 
-VAL_ACC_HISTORY_...pdf: Plot of training vs. validation loss (MAPE).
+All results are saved in the `TRAINED_NETWORKS/` directory, labeled with a unique hyperparameter string:
+* **`.h5` File**: The serialized Keras model weights and architecture.
+* **`VAL_ACC_HISTORY_...pdf`**: Plot of training vs. validation loss (MAPE).
+* **`MODEL_TEST_...pdf`**: Log-log plots of predicted vs. true noise spectra for random test samples.
 
-MODEL_TEST_...pdf: Log-log plots of predicted vs. true noise spectra for random test samples.
-
-Reference
-Gupta, B., Joshi, V., Kandpal, U., Mandayam, P., Gheeraert, N., & Dhomkar, S. (2025). Expedited Noise Spectroscopy of Transmon Qubits. Advanced Quantum Technologies. DOI: 10.1002/qute.202500109.
-+1
+## Reference
+Gupta, B., Joshi, V., Kandpal, U., Mandayam, P., Gheeraert, N., & Dhomkar, S. (2025). **Expedited Noise Spectroscopy of Transmon Qubits**. *Advanced Quantum Technologies*. [DOI: 10.1002/qute.202500109](https://doi.org/10.1002/qute.202500109).
