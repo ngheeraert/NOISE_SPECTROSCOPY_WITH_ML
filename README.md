@@ -51,8 +51,6 @@ The pipeline requires the following Python libraries:
    * `T_in` / `w_in`: Grids used for synthetic generation.
    * `T_train` / `w_train`: Grids used for model training/plotting.
 
-> **Note**: The default dataset name is hardcoded as `Mar14_x32_noisy_20_noises` in `MAIN.py`. Update the `data_file_name` variable to match your filename.
-
 ## Running the Pipeline
 
 ### Training a Single Model
