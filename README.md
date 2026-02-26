@@ -1,97 +1,82 @@
-# Noise Spectroscopy ML Pipeline
+# Expedited Noise Spectroscopy of Transmon Qubits: ML Pipeline
 
-This folder contains a training pipeline that:
-- loads a dataset of **coherence curves** (time-series inputs) and corresponding **noise spectra** (vector targets),
-- trains a **1D convolutional neural network** to map `coherence(t) -> spectrum(ω)`,
-- saves the trained model and a couple of diagnostic plots.
+[cite_start]This repository contains the machine learning pipeline developed to rapidly extract time-varying noise spectral densities associated with transmon qubits[cite: 5, 6]. 
 
-## Repository contents
+[cite_start]Traditional noise spectroscopy protocols are often resource-intensive and struggle with time-dependent noise because they require deconvolving a measured coherence decay curve $C(t)$ with a known filter function $F(\omega t)$[cite: 10, 11, 131]. [cite_start]This pipeline addresses that challenge by using a convolutional neural network (CNN) pre-trained on synthetic datasets to predict the underlying noise spectrum $S(\omega)$ nearly instantaneously with minimal absolute error[cite: 12, 13].
 
-- `MAIN.py`  
-  End-to-end training/evaluation script:
-  - loads `data/<dataset>.npz`,
-  - splits into train/test,
-  - builds a model variant selected by `--net_type`,
-  - trains with a learning-rate scheduler callback,
-  - saves the model and plots under `TRAINED_NETWORKS/`.
+## Repository Contents
 
-- `network_functions.py`  
-  Model zoo / architecture definitions:
-  - `get_model(...)` dispatches to one of several 1D-CNN variants via `net_type`.
-  - Output head is a fixed-length spectrum vector (`Dense(501)` in the provided architectures).
+* **`MAIN.py`**: The central training and evaluation script.
+    * Loads `.npz` datasets.
+    * Splits data into training/test sets using NumPy-only utilities.
+    * Builds the CNN model variant specified by `--net_type`.
+    * Trains the model using Mean Absolute Percentage Error (MAPE) loss and an Adam optimizer.
+    * Saves trained weights and diagnostic plots to `TRAINED_NETWORKS/`.
 
-- `data_generation_functions.py`  
-  Utilities to preprocess / synthesize data:
-  - NumPy-only train/test split (`numpy_train_test_split`),
-  - interpolation helpers to map data between grids,
-  - simple forward-model utilities (filter functions / coherence evaluation),
-  - `generate_final_data(...)` to augment coherence curves with small additive noise.
+* **`network_functions.py`**: Model architecture library.
+    * Contains various 1D-CNN encoder-decoder architectures.
+    * Features a dispatcher function `get_model(...)` to select architectures based on `net_type`.
+    * All models utilize a `Dense(501)` output layer to represent the spectrum vector.
 
-- `bash_single_2.sh`  
-  Runs a single training job with fixed hyperparameters.
+* **`data_generation_functions.py`**: Preprocessing and forward-modeling utilities.
+    * `getFilter(...)`: Computes filter functions for dynamical decoupling sequences.
+    * `getCoherence(...)`: A forward model that calculates coherence curves from spectra via numerical integration.
+    * `prepare_trainData(...)`: Adds Gaussian noise to synthetic curves to emulate experimental signal-to-noise ratios.
+    * `numpy_train_test_split(...)`: A utility for reproducible data splitting without external ML dependencies.
 
-- `bash_param_sweep.sh`  
-  Runs repeated trainings while randomly sampling architecture parameters (filters, kernel size).
+* **`bash_single_2.sh`**: A helper script to launch a single training job with optimized hyperparameters.
+
+* **`bash_param_sweep.sh`**: A script for running automated hyperparameter sweeps across different filter counts and kernel sizes.
 
 ## Requirements
 
-The scripts import the following common Python packages:
-- `tensorflow` (Keras API)
-- `numpy`
-- `matplotlib`
-- `scipy` (for interpolation in `data_generation_functions.py`)
-- `tqdm` (progress bars in `data_generation_functions.py`)
+The pipeline requires the following Python libraries:
+* `tensorflow` (Keras API)
+* `numpy`
+* `scipy` (for interpolation and numerical integration)
+* `matplotlib` (for diagnostic plotting)
+* `tqdm` (for progress tracking during data generation)
 
-## Data format
+## Setup & Data Format
 
-`MAIN.py` expects an `.npz` file in a `data/` subfolder with (at minimum) these arrays:
+1. **Create Directory Structure**:
+   ```bash
+   mkdir data TRAINED_NETWORKS
+Data Preparation:
+The MAIN.py script expects an .npz file in the data/ folder. The file must contain the following keys:
 
-- `c_in`: input coherence curves, shape `(N, Nt)` (or `(N, Nt, 1)` depending on how you saved it)
-- `s_in`: target spectra, shape `(N, Nw)`
-- `T_in`: time grid used to generate `c_in`
-- `w_in`: frequency grid used to generate `s_in`
-- `T_train`: time grid used for model input / plotting
-- `w_train`: frequency grid used for model output / plotting
+c_in: Input coherence curves (N samples x Time points).
 
-By default, `MAIN.py` hard-codes a dataset name (see `data_file_name=...` in the script). To use a different dataset,
-update that string so it matches your `.npz` filename in `data/`.
+s_in: Target noise spectra (N samples x Frequency points).
 
-## Running a single training
+T_in / w_in: Grids used for synthetic generation.
 
-From the folder containing `MAIN.py`:
+T_train / w_train: Grids used for model training/plotting.
 
-```bash
+Note: The default dataset name is hardcoded as Mar14_x32_noisy_20_noises in MAIN.py. Update the data_file_name variable to match your filename.
+
+Running the Pipeline
+Training a Single Model
+Execute MAIN.py with your desired hyperparameters:
+
+Bash
 python MAIN.py --batch_size 64 --epochs 20 --filters 40 --kernel_size 5 \
   --initial_lr 1e-3 --min_lr 1e-6 --patience 6 --min_delta 0.5 \
-  --verbose 1 --net_type 3
-```
+  --verbose 1 --net_type 1
+Performing a Parameter Sweep
+To automatically test multiple architectures:
 
-Or run the provided launcher:
-
-```bash
-bash bash_single_2.sh
-```
-
-## Parameter sweeps
-
-The sweep script repeatedly calls `MAIN.py` while randomly choosing `FILTERS` and `KERNEL_SIZE` within the ranges
-defined in `bash_param_sweep.sh`:
-
-```bash
+Bash
 bash bash_param_sweep.sh
-```
+Outputs
+All results are saved in the TRAINED_NETWORKS/ directory, labeled with a unique hyperparameter string:
 
-Stop the sweep with `Ctrl+C`.
+.h5 File: The serialized Keras model weights and architecture.
 
-## Outputs
+VAL_ACC_HISTORY_...pdf: Plot of training vs. validation loss (MAPE).
 
-Training outputs are written to `TRAINED_NETWORKS/` (created if it does not exist):
-- `MODEL_<paramchar>.h5` : saved Keras model
-- `VAL_ACC_HISTORY_<paramchar>.pdf` : training/validation loss history plot
-- `MODEL_TEST_<paramchar>.pdf` : a small random subset of predicted vs. true spectra (log-log)
+MODEL_TEST_...pdf: Log-log plots of predicted vs. true noise spectra for random test samples.
 
-The `<paramchar>` string is constructed from hyperparameters and the final validation loss to make runs easy to identify.
-
-## Reference
-
-B. Gupta et al., “Expedited Noise Spectroscopy of Transmon Qubits”, *Advanced Quantum Technologies* (2025), DOI: 10.1002/qute.202500109
+Reference
+Gupta, B., Joshi, V., Kandpal, U., Mandayam, P., Gheeraert, N., & Dhomkar, S. (2025). Expedited Noise Spectroscopy of Transmon Qubits. Advanced Quantum Technologies. DOI: 10.1002/qute.202500109.
++1
