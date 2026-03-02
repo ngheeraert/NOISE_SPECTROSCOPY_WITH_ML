@@ -1,18 +1,49 @@
-# =============================================================================
-# Training / evaluation entry point.
-#
-# This script loads a dataset of (coherence curve -> spectrum) pairs, builds a
-# 1D convolutional model (selected by net_type), trains it, saves the model, and
-# produces diagnostic plots for training history and random test predictions.
-#
-# Usage:
-#   python MAIN.py --batch_size 64 --epochs 20 --filters 40 --kernel_size 5 \
-#                 --initial_lr 1e-3 --min_lr 1e-6 --patience 6 --min_delta 0.5 \
-#                 --verbose 1 --net_type 1
-# =============================================================================
+# Module: Training and Evaluation Entry Point for Noise Spectroscopy
+# Reference: Gupta et al. (2025)
+# 
+# Purpose:
+# This script serves as the primary execution engine for training and validating
+# Convolutional Neural Networks (CNNs) designed to predict noise power spectral
+# densities S(w) from qubit coherence decay data C(t).
+# 
+# WORKFLOW DIAGRAM:
+# Input: Coherence Curves C(t) from .npz or IBM Quantum Hardware
+#           |
+#           v
+# +-----------------------+
+# |  DATA PREPROCESSING   |  --> Partition into Train/Test subsets
+# +-----------|-----------+
+#             |
+#             v
+# +-----------|-----------+     +-----------------------------------------+
+# |  CNN MODEL ASSEMBLY   | <-- | HYPERPARAMETERS: Filters, Kernels, etc.
+# +-----------|-----------+     +-----------------------------------------+
+#             |
+#             v
+# +-----------|-----------+
+# |  TRAINING (MAPE LOSS) | --> Minimize error between predicted & true S(w) 
+# +-----------|-----------+
+#             |
+#             v
+# +-----------|-----------+     +-----------------------------------------+
+# |   RESULTS & PLOTS     | --> Save .h5 model & log-log Diagnostic Plots
+# +-----------------------+     +-----------------------------------------+
+# 
+# Physical & Theoretical Context:
+# The script automates the process of mapping experimental or synthetic decoherence
+# curves to their underlying noise sources. It implements a supervised
+# learning workflow where the model is trained on synthetic datasets generated via
+# the filter function formalism to solve the inverse problem of deconvolution.
+# 
+# Core Workflow:
+#   - Hyperparameter Parsing: Configures network architecture and training logic via CLI.
+#   - Data Ingestion: Loads pre-generated .npz datasets and partitions them for validation.
+#   - Model Synthesis: Dispatches a 1D CNN architecture and compiles it using MAPE loss.
+#   - Training & Optimization: Executes the fit cycle with automated learning rate reduction.
+#   - Diagnostic Visualization: Generates log-log plots for performance auditing.
+# 
 
 from tensorflow.keras import models, optimizers, callbacks, Sequential
-#import tensorflow_addons as tfa
 import numpy as np
 import time
 from network_functions import get_model
@@ -24,12 +55,28 @@ import matplotlib
 matplotlib.rcParams['figure.dpi']=300
 
 
-#=============================================
-#
-# The block below implements lightweight CLI parsing (sys.argv) to override
-# the default hyperparameters. No external argument parser is used.
-#== COMMAND LINE PARAMETERS
-#=============================================
+"""
+============================================================
+HYPER-PARAMETER CONFIGURATION AND CLI PARSING
+
+Purpose:
+Sets the structural and optimization parameters for the neural network. 
+Values can be overridden via command-line arguments to facilitate automated 
+parameter sweeps.
+
+Inputs (Command Line Arguments):
+  - --batch_size (int): Number of samples per gradient update.
+  - --epochs (int): Number of complete passes through the training dataset.
+  - --filters (int): Base number of convolutional filters in the initial layer.
+  - --kernel_size (int): Width of the 1D convolutional window.
+  - --initial_lr (float): Starting learning rate for the Adam optimizer.
+  - --net_type (int): Identifier for the specific CNN architecture variant.
+  - --patience (int): Number of epochs with no improvement before reducing LR.
+
+Outputs:
+  - Global variables updated to reflect user-defined or default training constraints.
+ ============================================================
+"""
 
 #-- network structure
 FILTERS=40
@@ -92,16 +139,28 @@ print('-- MIN_DELTA   = ', MIN_DELTA)
 print('-- PATIENCE    = ', PATIENCE)
 print('=============================')
 
-#=============================================
-#
-# Dataset format expectation (npz):
-#   - c_in: input coherence curves (samples x time_points [x 1 optional channel])
-#   - s_in: target spectra (samples x freq_points)
-#   - T_in / w_in: grids used to generate synthetic data
-#   - T_train / w_train: grids used for model I/O and plotting
-#=============================================
+"""
+============================================================
+DATA INGESTION AND PREPROCESSING
 
-#== IMPORTING THE DATA
+Purpose: Loads synthetic or experimental decoherence datasets and prepares 
+the input (X) and target (y) tensors for the CNN.
+
+Physical Context: The 'c_in' data represents the noisy coherence decay C(t), 
+while 's_in'  represents the target noise power spectral density S(w).
+
+Inputs:
+  - data_file_name (.npz): Compressed NumPy file containing 'c_in', 's_in', 
+    and associated time/frequency grids (T_train, w_train).
+
+Outputs:
+  - x_train, x_test (numpy.ndarray): Training and validation sets of 
+    decoherence curves C(t).
+  - y_train, y_test (numpy.ndarray): Training and validation sets of 
+    target noise spectra S(w).
+============================================================
+"""
+
 data_file_name='Mar14_x32_noisy_20_noises'
 data = np.load("data/"+data_file_name+".npz")
 
@@ -123,14 +182,25 @@ print("  w0 = ",np.shape(w0))
 print("  w_train = ",np.shape(w_train))
 
 
-#=============================================
-#
-# Model construction:
-#   - get_model(...) returns a tf.keras Sequential model with an encoder-decoder
-#     style 1D CNN front-end and a Dense(501) output layer (spectrum vector).
-#   - ReduceLROnPlateau lowers the learning rate when the monitored loss stalls.
-#== create the neural, and compile the network
-#=============================================
+"""
+MODEL COMPILATION AND OPTIMIZATION LOOP
+
+Purpose: Initializes the CNN, defines the loss function, and executes the 
+backpropagation loop.
+
+Physical Context: Uses MAPE (Mean Absolute Percentage Error) as the loss function, 
+which is particularly effective for noise spectra that span several orders 
+of magnitude in amplitude.
+
+Inputs:
+  - net_type (int): Selects the specific encoder-decoder depth.
+  - RED_FACTOR (float): Factor by which the learning rate is multiplied 
+    during a plateau.
+
+Outputs:
+  - model (tf.keras.Model): The trained neural network.
+  - history_ (callback): Object containing per-epoch loss and validation metrics.
+"""
 
 X_TRAIN_SIZE = np.shape(x_train)[-1]
 
@@ -152,15 +222,6 @@ opt = optimizers.Adam(learning_rate=INITIAL_LR)  #-- define optimizer
 
 #-- compile
 model.compile(loss='MAPE', optimizer=opt)  #-- compilation
-
-#=============================================
-#
-# Training:
-#   - Uses MAPE (mean absolute percentage error) loss.
-#   - Tracks both training loss and validation loss.
-#   - 'history_' stores per-epoch metrics for later plotting/saving.
-#== training
-#=============================================
 
 print('-- beginning fit')
 t1 = time.time()
@@ -197,7 +258,25 @@ print("Saved:", 'TRAINED_NETWORKS/MODEL_'+paramchar+'.h5')
 #f.write( str(FILTERS) +'    '+ str(KERNEL_SIZE) + '    ' + str( np.round(history_.history['val_loss'][-1],2) ) + '\n' )
 #f.close()
 
-#-- plot the history
+"""
+PERFORMANCE EVALUATION AND DIAGNOSTIC PLOTTING
+
+Purpose:
+Quantifies the model's predictive accuracy and generates visual 
+[cite_start]benchmarks against the test set[cite: 193, 222].
+
+Physical Context:
+Generates log-log plots of Noise Amplitude vs. Frequency to verify 
+if the model correctly identifies characteristic noise profiles like 
+[cite_start]1/f behavior or white noise floors[cite: 193, 316].
+
+Outputs:
+  - VAL_ACC_HISTORY.pdf: Training/Validation loss curves.
+  - MODEL_TEST.pdf: Comparison of true vs. predicted S(w) for 
+    randomly selected test samples.
+  - Saved .h5 Model: The serialized weights and architecture for later 
+    deployment on experimental data.
+"""
 
 plt.subplot(1, 1, 1)
 plt.axhline(y = final_accuracy, color = 'black', dashes=[2,2,2,2])
@@ -210,14 +289,6 @@ plt.ylim(-1,100)
 plt.legend()
 plt.savefig( 'TRAINED_NETWORKS/VAL_ACC_HISTORY_'+paramchar+'.pdf', format='pdf' )
 plt.close()
-
-
-#=============================================
-#
-# Quick qualitative test:
-#   - Predict spectra for the held-out test set.
-#   - Plot a small random subset of true vs predicted spectra on log-log axes.
-#=============================================
 
 #-- apply the network to the whole test set
 predictions = model.predict(x_test)
