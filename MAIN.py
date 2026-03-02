@@ -263,12 +263,12 @@ PERFORMANCE EVALUATION AND DIAGNOSTIC PLOTTING
 
 Purpose:
 Quantifies the model's predictive accuracy and generates visual 
-[cite_start]benchmarks against the test set[cite: 193, 222].
+benchmarks against the test set.
 
 Physical Context:
 Generates log-log plots of Noise Amplitude vs. Frequency to verify 
 if the model correctly identifies characteristic noise profiles like 
-[cite_start]1/f behavior or white noise floors[cite: 193, 316].
+1/f behavior or white noise floors.
 
 Outputs:
   - VAL_ACC_HISTORY.pdf: Training/Validation loss curves.
